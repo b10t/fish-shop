@@ -39,11 +39,16 @@ def start(bot, update):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if update.message:
-        message = update.message
+        update.message.reply_text('Please choose:', reply_markup=reply_markup)
     else:
-        message = update.callback_query
+        chat_id = update.effective_chat.id
+        bot.deleteMessage(chat_id=chat_id,
+                          message_id=update.effective_message.message_id)
 
-    message.reply_text('Please choose:', reply_markup=reply_markup)
+        bot.send_message(chat_id=chat_id,
+                         text='Please choose:',
+                         reply_markup=reply_markup)
+
     return 'HANDLE_MENU'
 
 
@@ -51,9 +56,9 @@ def get_image_url(product):
     """Получает ссылку на URL изображения."""
     try:
         if file_id := (product.get('relationships')
-                    .get('main_image')
-                    .get('data')
-                    .get('id')):
+                       .get('main_image')
+                       .get('data')
+                       .get('id')):
 
             if file_url := (Moltin.get_file_url(file_id)
                             .get('data')
@@ -63,6 +68,7 @@ def get_image_url(product):
                 return file_url
     except Exception:
         return open('no_image.jpg', 'rb')
+
 
 def handle_menu(bot, update):
     query = update.callback_query
@@ -92,13 +98,20 @@ def handle_menu(bot, update):
     bot.deleteMessage(chat_id=update.effective_chat.id,
                       message_id=update.effective_message.message_id)
 
+    keyboard = [
+        [InlineKeyboardButton('Назад', callback_data='BACK')]
+    ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
     bot.send_photo(
         chat_id=update.effective_chat.id,
         photo=image_url,
         caption=message_text,
-        parse_mode=ParseMode.MARKDOWN)
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=reply_markup)
 
-    return 'HANDLE_MENU'
+    return 'HANDLE_DESCRIPTION'
 
 
 def echo(bot, update):
@@ -136,7 +149,7 @@ def handle_users_reply(bot, update):
         chat_id = update.callback_query.message.chat_id
     else:
         return
-    if user_reply == '/start':
+    if user_reply == '/start' or user_reply == 'BACK':
         user_state = 'START'
     else:
         user_state = db.get(chat_id).decode('utf-8')
@@ -144,6 +157,7 @@ def handle_users_reply(bot, update):
     states_functions = {
         'START': start,
         'HANDLE_MENU': handle_menu,
+        'HANDLE_DESCRIPTION': start,
         'ECHO': echo
     }
     state_handler = states_functions[user_state]
@@ -189,7 +203,6 @@ def main():
     updater = Updater(token)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))
-    # dispatcher.add_handler(CallbackQueryHandler(handle_menu))
     dispatcher.add_handler(MessageHandler(Filters.text, handle_users_reply))
     dispatcher.add_handler(CommandHandler('start', handle_users_reply))
     updater.start_polling()
