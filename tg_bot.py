@@ -1,17 +1,13 @@
-"""
-Работает с этими модулями:
-
-python-telegram-bot==11.1.0
-redis==3.2.1
-"""
 import logging
-import os
+from textwrap import dedent
 
 import redis
 from environs import Env
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (InlineKeyboardButton, InlineKeyboardMarkup, ParseMode)
 from telegram.ext import (CallbackQueryHandler, CommandHandler, Filters,
                           MessageHandler, Updater)
+
+from moltin_api import Moltin
 
 _database = None
 
@@ -25,23 +21,85 @@ def start(bot, update):
     Бот отвечает пользователю фразой "Привет!" и переводит его в состояние ECHO.
     Теперь в ответ на его команды будет запускаеться хэндлер echo.
     """
-    keyboard = [[InlineKeyboardButton("Option 1", callback_data='1'),
-                 InlineKeyboardButton("Option 2", callback_data='2')],
 
-                [InlineKeyboardButton("Option 3", callback_data='3')]]
+    products = Moltin.get_products()
+
+    keyboard = []
+
+    for product in products:
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    product.get('name'),
+                    callback_data=product.get('id')
+                )
+            ]
+        )
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    update.message.reply_text('Please choose:', reply_markup=reply_markup)
-    return 'BUTTON'
+    if update.message:
+        message = update.message
+    else:
+        message = update.callback_query
+
+    message.reply_text('Please choose:', reply_markup=reply_markup)
+    return 'HANDLE_MENU'
 
 
-def button(bot, update):
+def get_image_url(product):
+    """Получает ссылку на URL изображения."""
+    try:
+        if file_id := (product.get('relationships')
+                    .get('main_image')
+                    .get('data')
+                    .get('id')):
+
+            if file_url := (Moltin.get_file_url(file_id)
+                            .get('data')
+                            .get('link')
+                            .get('href')):
+
+                return file_url
+    except Exception:
+        return open('no_image.jpg', 'rb')
+
+def handle_menu(bot, update):
     query = update.callback_query
 
-    bot.edit_message_text(text="Selected option: {}".format(query.data),
-                          chat_id=query.message.chat_id,
-                          message_id=query.message.message_id)
+    item_id = query.data
+
+    product = Moltin.get_product(item_id)
+
+    image_url = get_image_url(product)
+
+    price = product.get('price')[0]
+    price = f'{float(price["amount"]) / 100} {price["currency"]}'
+
+    message_text = dedent(
+        f'''
+            *{product.get('name')}*
+
+            *Цена:*:
+            `{price}`
+
+            Описание:
+            `{product.get('description')}`
+
+        '''
+    )
+
+    bot.deleteMessage(chat_id=update.effective_chat.id,
+                      message_id=update.effective_message.message_id)
+
+    bot.send_photo(
+        chat_id=update.effective_chat.id,
+        photo=image_url,
+        caption=message_text,
+        parse_mode=ParseMode.MARKDOWN)
+
+    return 'HANDLE_MENU'
+
 
 def echo(bot, update):
     """
@@ -85,7 +143,7 @@ def handle_users_reply(bot, update):
 
     states_functions = {
         'START': start,
-        'BUTTON': button,
+        'HANDLE_MENU': handle_menu,
         'ECHO': echo
     }
     state_handler = states_functions[user_state]
@@ -120,9 +178,6 @@ def get_database_connection():
             password=database_password
         )
 
-        if keys := _database.keys('QA_*'):
-            _database.delete(*keys)
-
     return _database
 
 
@@ -134,7 +189,7 @@ def main():
     updater = Updater(token)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))
-    dispatcher.add_handler(CallbackQueryHandler(button))
+    # dispatcher.add_handler(CallbackQueryHandler(handle_menu))
     dispatcher.add_handler(MessageHandler(Filters.text, handle_users_reply))
     dispatcher.add_handler(CommandHandler('start', handle_users_reply))
     updater.start_polling()
