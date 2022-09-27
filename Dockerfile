@@ -1,6 +1,6 @@
-FROM python:3.10-alpine
+FROM python:3.8.10
 
-RUN adduser -D bot
+RUN useradd -m bot
 USER bot
 WORKDIR /home/bot
 
