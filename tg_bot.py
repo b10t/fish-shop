@@ -3,7 +3,7 @@ from textwrap import dedent
 
 import redis
 from environs import Env
-from telegram import (InlineKeyboardButton, InlineKeyboardMarkup, ParseMode)
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 from telegram.ext import (CallbackQueryHandler, CommandHandler, Filters,
                           MessageHandler, Updater)
 
@@ -22,6 +22,8 @@ def start(bot, update):
     Теперь в ответ на его команды будет запускаеться хэндлер echo.
     """
 
+    Moltin.create_cart(update.effective_user.id)
+
     products = Moltin.get_products()
 
     keyboard = []
@@ -35,6 +37,13 @@ def start(bot, update):
                 )
             ]
         )
+
+    keyboard.append(
+        [InlineKeyboardButton(
+            '🛒 Корзина',
+            callback_data='SHOW_CART'
+        )]
+    )
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -71,6 +80,7 @@ def get_image_url(product):
 
 
 def handle_menu(bot, update):
+    """Обработка кнопок меню."""
     query = update.callback_query
 
     item_id = query.data
@@ -98,8 +108,20 @@ def handle_menu(bot, update):
     bot.deleteMessage(chat_id=update.effective_chat.id,
                       message_id=update.effective_message.message_id)
 
+    quantity_button = []
+
+    for quantity in [1, 5, 10]:
+        quantity_button.append(
+            InlineKeyboardButton(
+                f'{quantity} кг.',
+                callback_data=f'{item_id}#{quantity}',
+            )
+        )
+
     keyboard = [
-        [InlineKeyboardButton('Назад', callback_data='BACK')]
+        quantity_button,
+        [InlineKeyboardButton('🛒 Корзина', callback_data='SHOW_CART')],
+        [InlineKeyboardButton('В меню', callback_data='BACK')]
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -114,16 +136,132 @@ def handle_menu(bot, update):
     return 'HANDLE_DESCRIPTION'
 
 
-def echo(bot, update):
-    """
-    Хэндлер для состояния ECHO.
+def handle_description(bot, update):
+    """Обработка вывода описания."""
+    user_id = update.effective_user.id
+    query = update.callback_query
 
-    Бот отвечает пользователю тем же, что пользователь ему написал.
-    Оставляет пользователя в состоянии ECHO.
-    """
-    users_reply = update.message.text
-    update.message.reply_text(users_reply)
-    return 'ECHO'
+    item_id, quantity = query.data.split('#')
+
+    Moltin.add_cart_item(user_id, item_id=item_id, quantity=quantity)
+
+    return 'HANDLE_DESCRIPTION'
+
+
+def show_cart(bot, update):
+    """Отображение корзины."""
+    chat_id = update.effective_chat.id
+    message_id = update.effective_message.message_id
+    user_id = update.effective_user.id
+
+    cart = Moltin.get_cart(user_id)
+    cart_items = Moltin.get_cart_items(user_id).get('data', [])
+
+    cost = (cart.get('data')
+                .get('meta')
+                .get('display_price')
+                .get('with_tax')
+                .get('formatted'))
+
+    keyboard = []
+    description_items = []
+
+    for item in cart_items:
+        quantity = item.get('quantity', 0)
+        price = item.get('unit_price', 0).get('amount', 0) / 100
+
+        description_items.append(
+            dedent(
+                f'''
+                    *{item.get('name')}*
+                    *Цена:*
+                    `{price}`
+                    Количество:
+                    `{quantity}`
+                '''
+            )
+        )
+
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f'Убрать из корзины: {item.get("name")}',
+                    callback_data=f'{item.get("id")}',
+                )
+            ]
+        )
+
+    description_items.append(
+        dedent(
+            f'''
+                Стоимость:
+                `{cost}`
+            '''
+        )
+    )
+
+    message_text = dedent(
+        f'''
+            🛒 *Товары в корзине:*
+            {''.join(description_items)}
+        '''
+    )
+
+    keyboard.append(
+        [InlineKeyboardButton('Оплатить', callback_data='WAITING_EMAIL')]
+    )
+
+    keyboard.append(
+        [InlineKeyboardButton('В меню', callback_data='BACK')]
+    )
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    bot.deleteMessage(chat_id=chat_id,
+                      message_id=message_id)
+
+    bot.send_message(chat_id=chat_id,
+                     text=message_text,
+                     reply_markup=reply_markup,
+                     parse_mode=ParseMode.MARKDOWN)
+
+    return 'HANDLE_CART'
+
+
+def handle_cart(bot, update):
+    """Обработка кнопок корзины."""
+    user_id = update.effective_user.id
+
+    query = update.callback_query
+    item_id = query.data
+
+    Moltin.remove_cart_item(user_id, item_id)
+
+    return show_cart(bot, update)
+
+
+def waiting_email(bot, update):
+    """Получение email покупателя."""
+    chat_id = update.effective_chat.id
+    message_id = update.effective_message.message_id
+    user_id = update.effective_user.id
+
+    if update.message:
+        email = update.message.text
+
+        update.message.reply_text(f'Ваш e-mail: {email}')
+
+        Moltin.create_customer(user_id, email)
+
+        return show_cart(bot, update)
+    else:
+        bot.deleteMessage(chat_id=chat_id,
+                          message_id=message_id)
+
+        bot.send_message(chat_id=chat_id,
+                         text='Пожалуйста, введите свой e-mail:')
+
+        return 'WAITING_EMAIL'
 
 
 def handle_users_reply(bot, update):
@@ -151,14 +289,20 @@ def handle_users_reply(bot, update):
         return
     if user_reply == '/start' or user_reply == 'BACK':
         user_state = 'START'
+    elif user_reply == 'SHOW_CART':
+        user_state = 'SHOW_CART'
+    elif user_reply == 'WAITING_EMAIL':
+        user_state = 'WAITING_EMAIL'
     else:
         user_state = db.get(chat_id).decode('utf-8')
 
     states_functions = {
         'START': start,
         'HANDLE_MENU': handle_menu,
-        'HANDLE_DESCRIPTION': start,
-        'ECHO': echo
+        'HANDLE_DESCRIPTION': handle_description,
+        'SHOW_CART': show_cart,
+        'HANDLE_CART': handle_cart,
+        'WAITING_EMAIL': waiting_email
     }
     state_handler = states_functions[user_state]
     # Если вы вдруг не заметите, что python-telegram-bot перехватывает ошибки.
