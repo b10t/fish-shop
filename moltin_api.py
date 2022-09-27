@@ -47,6 +47,9 @@ class Moltin():
     @classmethod
     def create_cart(cls, cart_id):
         """Создаёт корзину."""
+        if cart := cls.get_cart(cart_id):
+            return cart
+
         moltin_token = cls.get_access_token()
 
         headers = {
@@ -64,6 +67,89 @@ class Moltin():
             'https://api.moltin.com/v2/carts',
             headers=headers,
             json=payload
+        )
+        response.raise_for_status()
+
+        return response.json()
+
+    @classmethod
+    def get_cart(cls, cart_id):
+        """Получает данные корзины."""
+        try:
+            moltin_token = cls.get_access_token()
+
+            headers = {
+                'Authorization': f'Bearer {moltin_token.get("access_token")}'
+            }
+
+            response = requests.get(
+                f'https://api.moltin.com/v2/carts/{cart_id}',
+                headers=headers,
+            )
+            response.raise_for_status()
+
+            return response.json()
+        except Exception:
+            return {}
+
+    @classmethod
+    def get_cart_items(cls, cart_id):
+        """Получает содержимое корзины."""
+        try:
+            moltin_token = cls.get_access_token()
+
+            headers = {
+                'Authorization': f'Bearer {moltin_token.get("access_token")}'
+            }
+
+            response = requests.get(
+                f'https://api.moltin.com/v2/carts/{cart_id}/items',
+                headers=headers,
+            )
+            response.raise_for_status()
+
+            return response.json()
+        except Exception:
+            return {}
+
+    @classmethod
+    def add_cart_item(cls, cart_id, item_id, quantity=1):
+        """Добавляет товар в корзину."""
+        moltin_token = cls.get_access_token()
+
+        headers = {
+            'Authorization': f'Bearer {moltin_token.get("access_token")}'
+        }
+
+        payload = {
+            'data': {
+                'id': item_id,
+                'type': 'cart_item',
+                'quantity': int(quantity)
+            }
+        }
+
+        response = requests.post(
+            f'https://api.moltin.com/v2/carts/{cart_id}/items',
+            headers=headers,
+            json=payload
+        )
+        response.raise_for_status()
+
+        return response.json()
+
+    @classmethod
+    def remove_cart_item(cls, cart_id, item_id):
+        """Удаляет товар из корзины."""
+        moltin_token = cls.get_access_token()
+
+        headers = {
+            'Authorization': f'Bearer {moltin_token.get("access_token")}'
+        }
+
+        response = requests.delete(
+            f'https://api.moltin.com/v2/carts/{cart_id}/items/{item_id}',
+            headers=headers,
         )
         response.raise_for_status()
 
@@ -106,33 +192,6 @@ class Moltin():
 
         return response.json().get('data', {})
 
-
-    @classmethod
-    def add_cart_item(cls, cart_id, item_id, quantity=1):
-        """Добавляет товар в корзину."""
-        moltin_token = cls.get_access_token()
-
-        headers = {
-            'Authorization': f'Bearer {moltin_token.get("access_token")}'
-        }
-
-        payload = {
-            'data': {
-                'id': item_id,
-                'type': 'cart_item',
-                'quantity': quantity
-            }
-        }
-
-        response = requests.post(
-            f'https://api.moltin.com/v2/carts/{cart_id}/items',
-            headers=headers,
-            json=payload
-        )
-        response.raise_for_status()
-
-        return response.json()
-
     @classmethod
     def get_file_url(cls, file_id):
         """Получает URL файла по id."""
@@ -150,13 +209,28 @@ class Moltin():
 
         return response.json()
 
+    @classmethod
+    def create_customer(cls, customer_id, customer_email):
+        """Создает покупателя."""
+        moltin_token = cls.get_access_token()
 
-# asd = Moltin.get_access_token()
-# print(asd)
+        headers = {
+            'Authorization': f'Bearer {moltin_token.get("access_token")}'
+        }
 
+        payload = {
+            'data': {
+                'type': 'customer',
+                'name': f'{customer_id}',
+                'email': f'{customer_email}'
+            }
+        }
 
-# asd = Moltin.get_product('5259b9c9-9008-4ff3-9d76-81f9e2a6aedc')
-# print(asd)
+        response = requests.post(
+            f'https://api.moltin.com/v2/customers',
+            headers=headers,
+            json=payload
+        )
+        response.raise_for_status()
 
-# asd = Moltin.download_file('f1efe08e-9206-4ee8-8899-b378c50dff2a')
-# print(asd)
+        return response.json()
