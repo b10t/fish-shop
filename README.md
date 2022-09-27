@@ -32,6 +32,20 @@ pip install -r requirements.txt
 python tg_bot.py
 ```
 
+## Запуск, используя docker  
+
+Docker должен быть установлен на локальную машину.  
+
+Для сборки образа, используем команду:  
+```bash
+docker build --pull --rm -f "Dockerfile" -t fish_shop:latest "."
+```
+
+Для запуска контейнера, необходимо запустить команду:  
+```bash
+docker run --restart=always --detach --env-file .env --name=fish_shop fish_shop:latest
+```
+
 ## Пример использования бота
 
 [FishShopBot](https://t.me/FishShop_b10t_bot)
