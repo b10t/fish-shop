@@ -312,7 +312,7 @@ def handle_users_reply(bot, update):
         next_state = state_handler(bot, update)
         db.set(chat_id, next_state)
     except Exception as err:
-        print(err)
+        logger.error(err)
 
 
 def get_database_connection():
@@ -340,6 +340,11 @@ def get_database_connection():
 
 
 def main():
+    logging.basicConfig(
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        level=logging.INFO,
+    )
+
     env = Env()
     env.read_env()
 
