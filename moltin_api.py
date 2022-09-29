@@ -6,31 +6,39 @@ from environs import Env
 
 class Moltin():
     __moltin_token = {}
+    __moltin_client_id = ''
 
-    @classmethod
-    def is_token_expired(cls):
+    def __new__(cls, moltin_client_id):
+        try:
+            cls.__moltin_client_id = moltin_client_id
+            it = cls.__it__
+        except AttributeError:
+            it = cls.__it__ = object.__new__(cls)
+        return it
+
+    def __repr__(self):
+        return '<{}>'.format(self.__class__.__name__.upper())
+
+    def __eq__(self, other):
+        return other is self
+
+    def is_token_expired(self):
         """Проверка, истек ли срок действия токена."""
-        if not cls.__moltin_token:
+        if not self.__moltin_token:
             return True
 
-        token_expires = cls.__moltin_token.get('expires', 0)
+        token_expires = self.__moltin_token.get('expires', 0)
 
         if time.time() > token_expires:
             return True
 
         return False
 
-    @classmethod
-    def get_access_token(cls):
+    def get_access_token(self):
         """Возвращает токен."""
-        if cls.is_token_expired():
-            env = Env()
-            env.read_env()
-
-            moltin_client_id = env.str('MOLTIN_CLIENT_ID')
-
+        if self.is_token_expired():
             data = {
-                'client_id': moltin_client_id,
+                'client_id': self.__moltin_client_id,
                 'grant_type': 'implicit',
             }
 
@@ -40,17 +48,16 @@ class Moltin():
             )
             response.raise_for_status()
 
-            cls.__moltin_token = response.json()
+            self.__moltin_token = response.json()
 
-        return cls.__moltin_token
+        return self.__moltin_token
 
-    @classmethod
-    def create_cart(cls, cart_id):
+    def get_or_create_cart(self, cart_id):
         """Создаёт корзину."""
-        if cart := cls.get_cart(cart_id):
+        if cart := self.get_cart(cart_id):
             return cart
 
-        moltin_token = cls.get_access_token()
+        moltin_token = self.get_access_token()
 
         headers = {
             'Authorization': f'Bearer {moltin_token.get("access_token")}'
@@ -72,11 +79,10 @@ class Moltin():
 
         return response.json()
 
-    @classmethod
-    def get_cart(cls, cart_id):
+    def get_cart(self, cart_id):
         """Получает данные корзины."""
         try:
-            moltin_token = cls.get_access_token()
+            moltin_token = self.get_access_token()
 
             headers = {
                 'Authorization': f'Bearer {moltin_token.get("access_token")}'
@@ -92,11 +98,10 @@ class Moltin():
         except Exception:
             return {}
 
-    @classmethod
-    def get_cart_items(cls, cart_id):
+    def get_cart_items(self, cart_id):
         """Получает содержимое корзины."""
         try:
-            moltin_token = cls.get_access_token()
+            moltin_token = self.get_access_token()
 
             headers = {
                 'Authorization': f'Bearer {moltin_token.get("access_token")}'
@@ -112,10 +117,9 @@ class Moltin():
         except Exception:
             return {}
 
-    @classmethod
-    def add_cart_item(cls, cart_id, item_id, quantity=1):
+    def add_cart_item(self, cart_id, item_id, quantity=1):
         """Добавляет товар в корзину."""
-        moltin_token = cls.get_access_token()
+        moltin_token = self.get_access_token()
 
         headers = {
             'Authorization': f'Bearer {moltin_token.get("access_token")}'
@@ -138,10 +142,9 @@ class Moltin():
 
         return response.json()
 
-    @classmethod
-    def remove_cart_item(cls, cart_id, item_id):
+    def remove_cart_item(self, cart_id, item_id):
         """Удаляет товар из корзины."""
-        moltin_token = cls.get_access_token()
+        moltin_token = self.get_access_token()
 
         headers = {
             'Authorization': f'Bearer {moltin_token.get("access_token")}'
@@ -155,11 +158,10 @@ class Moltin():
 
         return response.json()
 
-    @classmethod
-    def get_products(cls):
+    def get_products(self):
         """Возвращает список товаров."""
         products = []
-        moltin_token = cls.get_access_token()
+        moltin_token = self.get_access_token()
 
         headers = {
             'Authorization': f'Bearer {moltin_token.get("access_token")}'
@@ -175,10 +177,9 @@ class Moltin():
 
         return products
 
-    @classmethod
-    def get_product(cls, item_id):
+    def get_product(self, item_id):
         """Возвращает описание товара."""
-        moltin_token = cls.get_access_token()
+        moltin_token = self.get_access_token()
 
         headers = {
             'Authorization': f'Bearer {moltin_token.get("access_token")}'
@@ -192,10 +193,9 @@ class Moltin():
 
         return response.json().get('data', {})
 
-    @classmethod
-    def get_file_url(cls, file_id):
+    def get_file_url(self, file_id):
         """Получает URL файла по id."""
-        moltin_token = cls.get_access_token()
+        moltin_token = self.get_access_token()
 
         headers = {
             'Authorization': f'Bearer {moltin_token.get("access_token")}'
@@ -209,10 +209,9 @@ class Moltin():
 
         return response.json()
 
-    @classmethod
-    def create_customer(cls, customer_id, customer_email):
+    def create_customer(self, customer_id, customer_email):
         """Создает покупателя."""
-        moltin_token = cls.get_access_token()
+        moltin_token = self.get_access_token()
 
         headers = {
             'Authorization': f'Bearer {moltin_token.get("access_token")}'
