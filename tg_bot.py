@@ -53,12 +53,12 @@ def start(bot, update):
         update.message.reply_text('Please choose:', reply_markup=reply_markup)
     else:
         chat_id = update.effective_chat.id
-        bot.deleteMessage(chat_id=chat_id,
-                          message_id=update.effective_message.message_id)
-
         bot.send_message(chat_id=chat_id,
                          text='Please choose:',
                          reply_markup=reply_markup)
+
+        bot.delete_message(chat_id=chat_id,
+                           message_id=update.effective_message.message_id)
 
     return 'HANDLE_MENU'
 
@@ -85,6 +85,9 @@ def get_image_url(product):
 
 def handle_menu(bot, update):
     """Обработка кнопок меню."""
+    chat_id = update.effective_chat.id
+    message_id = update.effective_message.message_id
+
     query = update.callback_query
     item_id = query.data
 
@@ -110,9 +113,6 @@ def handle_menu(bot, update):
         '''
     )
 
-    bot.deleteMessage(chat_id=update.effective_chat.id,
-                      message_id=update.effective_message.message_id)
-
     quantity_button = []
 
     for quantity in [1, 5, 10]:
@@ -132,11 +132,14 @@ def handle_menu(bot, update):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     bot.send_photo(
-        chat_id=update.effective_chat.id,
+        chat_id=chat_id,
         photo=image_url,
         caption=message_text,
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=reply_markup)
+
+    bot.delete_message(chat_id=chat_id,
+                       message_id=message_id)
 
     return 'HANDLE_DESCRIPTION'
 
@@ -224,13 +227,13 @@ def show_cart(bot, update):
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    bot.deleteMessage(chat_id=chat_id,
-                      message_id=message_id)
-
     bot.send_message(chat_id=chat_id,
                      text=message_text,
                      reply_markup=reply_markup,
                      parse_mode=ParseMode.MARKDOWN)
+
+    bot.delete_message(chat_id=chat_id,
+                       message_id=message_id)
 
     return 'HANDLE_CART'
 
@@ -264,11 +267,11 @@ def waiting_email(bot, update):
 
         return show_cart(bot, update)
     else:
-        bot.deleteMessage(chat_id=chat_id,
-                          message_id=message_id)
-
         bot.send_message(chat_id=chat_id,
                          text='Пожалуйста, введите свой e-mail:')
+
+        bot.delete_message(chat_id=chat_id,
+                           message_id=message_id)
 
         return 'WAITING_EMAIL'
 
