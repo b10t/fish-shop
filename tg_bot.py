@@ -28,17 +28,12 @@ def start(bot, update):
 
     products = moltin.get_products()
 
-    keyboard = []
-
-    for product in products:
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    product.get('name'),
-                    callback_data=product.get('id')
-                )
-            ]
+    keyboard = [
+        [InlineKeyboardButton(
+            product.get('name'),
+            callback_data=product.get('id')
         )
+        ] for product in products]
 
     keyboard.append(
         [InlineKeyboardButton(
@@ -67,20 +62,17 @@ def get_image_url(product):
     """Получает ссылку на URL изображения."""
     moltin = Moltin()
 
-    try:
-        if file_id := (product.get('relationships')
-                       .get('main_image')
-                       .get('data')
-                       .get('id')):
+    if file_id := (product.get('relationships')
+                   .get('main_image')
+                   .get('data')
+                   .get('id')):
 
-            if file_url := (moltin.get_file_url(file_id)
-                            .get('data')
-                            .get('link')
-                            .get('href')):
+        if file_url := (moltin.get_file_url(file_id)
+                        .get('data')
+                        .get('link')
+                        .get('href')):
 
-                return file_url
-    except Exception:
-        return open('no_image.jpg', 'rb')
+            return file_url
 
 
 def handle_menu(bot, update):
@@ -95,7 +87,10 @@ def handle_menu(bot, update):
 
     product = moltin.get_product(item_id)
 
-    image_url = get_image_url(product)
+    try:
+        image_url = get_image_url(product)
+    except Exception:
+        image_url = open('no_image.jpg', 'rb')
 
     price = product.get('price')[0]
     price = f'{float(price["amount"]) / 100} {price["currency"]}'

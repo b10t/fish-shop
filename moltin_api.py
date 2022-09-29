@@ -80,41 +80,35 @@ class Moltin():
 
     def get_cart(self, cart_id):
         """Получает данные корзины."""
-        try:
-            moltin_token = self.get_access_token()
+        moltin_token = self.get_access_token()
 
-            headers = {
-                'Authorization': f'Bearer {moltin_token.get("access_token")}'
-            }
+        headers = {
+            'Authorization': f'Bearer {moltin_token.get("access_token")}'
+        }
 
-            response = requests.get(
-                f'https://api.moltin.com/v2/carts/{cart_id}',
-                headers=headers,
-            )
-            response.raise_for_status()
+        response = requests.get(
+            f'https://api.moltin.com/v2/carts/{cart_id}',
+            headers=headers,
+        )
+        response.raise_for_status()
 
-            return response.json()
-        except Exception:
-            return {}
+        return response.json()
 
     def get_cart_items(self, cart_id):
         """Получает содержимое корзины."""
-        try:
-            moltin_token = self.get_access_token()
+        moltin_token = self.get_access_token()
 
-            headers = {
-                'Authorization': f'Bearer {moltin_token.get("access_token")}'
-            }
+        headers = {
+            'Authorization': f'Bearer {moltin_token.get("access_token")}'
+        }
 
-            response = requests.get(
-                f'https://api.moltin.com/v2/carts/{cart_id}/items',
-                headers=headers,
-            )
-            response.raise_for_status()
+        response = requests.get(
+            f'https://api.moltin.com/v2/carts/{cart_id}/items',
+            headers=headers,
+        )
+        response.raise_for_status()
 
-            return response.json()
-        except Exception:
-            return {}
+        return response.json()
 
     def add_cart_item(self, cart_id, item_id, quantity=1):
         """Добавляет товар в корзину."""
