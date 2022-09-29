@@ -81,6 +81,7 @@ def handle_menu(bot, update):
     message_id = update.effective_message.message_id
 
     query = update.callback_query
+
     item_id = query.data
 
     moltin = Moltin()
@@ -297,9 +298,9 @@ def handle_users_reply(bot, update):
     if user_reply == '/start' or user_reply == 'BACK':
         user_state = 'START'
     elif user_reply == 'SHOW_CART':
-        user_state = 'SHOW_CART'
+        return show_cart(bot, update)
     elif user_reply == 'WAITING_EMAIL':
-        user_state = 'WAITING_EMAIL'
+        return waiting_email(bot, update)
     else:
         user_state = db.get(chat_id).decode('utf-8')
 
