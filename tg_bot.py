@@ -22,9 +22,11 @@ def start(bot, update):
     Теперь в ответ на его команды будет запускаеться хэндлер echo.
     """
 
-    Moltin.create_cart(update.effective_user.id)
+    moltin = Moltin()
 
-    products = Moltin.get_products()
+    moltin.get_or_create_cart(update.effective_user.id)
+
+    products = moltin.get_products()
 
     keyboard = []
 
@@ -63,13 +65,15 @@ def start(bot, update):
 
 def get_image_url(product):
     """Получает ссылку на URL изображения."""
+    moltin = Moltin()
+
     try:
         if file_id := (product.get('relationships')
                        .get('main_image')
                        .get('data')
                        .get('id')):
 
-            if file_url := (Moltin.get_file_url(file_id)
+            if file_url := (moltin.get_file_url(file_id)
                             .get('data')
                             .get('link')
                             .get('href')):
@@ -82,10 +86,11 @@ def get_image_url(product):
 def handle_menu(bot, update):
     """Обработка кнопок меню."""
     query = update.callback_query
-
     item_id = query.data
 
-    product = Moltin.get_product(item_id)
+    moltin = Moltin()
+
+    product = moltin.get_product(item_id)
 
     image_url = get_image_url(product)
 
@@ -143,7 +148,8 @@ def handle_description(bot, update):
 
     item_id, quantity = query.data.split('#')
 
-    Moltin.add_cart_item(user_id, item_id=item_id, quantity=quantity)
+    moltin = Moltin()
+    moltin.add_cart_item(user_id, item_id=item_id, quantity=quantity)
 
     return 'HANDLE_DESCRIPTION'
 
@@ -154,8 +160,9 @@ def show_cart(bot, update):
     message_id = update.effective_message.message_id
     user_id = update.effective_user.id
 
-    cart = Moltin.get_cart(user_id)
-    cart_items = Moltin.get_cart_items(user_id).get('data', [])
+    moltin = Moltin()
+    cart = moltin.get_cart(user_id)
+    cart_items = moltin.get_cart_items(user_id).get('data', [])
 
     cost = (cart.get('data')
                 .get('meta')
@@ -235,7 +242,8 @@ def handle_cart(bot, update):
     query = update.callback_query
     item_id = query.data
 
-    Moltin.remove_cart_item(user_id, item_id)
+    moltin = Moltin()
+    moltin.remove_cart_item(user_id, item_id)
 
     return show_cart(bot, update)
 
@@ -251,7 +259,8 @@ def waiting_email(bot, update):
 
         update.message.reply_text(f'Ваш e-mail: {email}')
 
-        Moltin.create_customer(user_id, email)
+        moltin = Moltin()
+        moltin.create_customer(user_id, email)
 
         return show_cart(bot, update)
     else:
@@ -349,6 +358,10 @@ def main():
     env.read_env()
 
     token = env.str('TELEGRAM_TOKEN')
+    moltin_client_id = env.str('MOLTIN_CLIENT_ID')
+
+    Moltin(moltin_client_id)
+
     updater = Updater(token)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))

@@ -8,9 +8,11 @@ class Moltin():
     __moltin_token = {}
     __moltin_client_id = ''
 
-    def __new__(cls, moltin_client_id):
+    def __new__(cls, moltin_client_id=''):
         try:
-            cls.__moltin_client_id = moltin_client_id
+            if not cls.__moltin_client_id:
+                cls.__moltin_client_id = moltin_client_id
+
             it = cls.__it__
         except AttributeError:
             it = cls.__it__ = object.__new__(cls)
@@ -29,10 +31,7 @@ class Moltin():
 
         token_expires = self.__moltin_token.get('expires', 0)
 
-        if time.time() > token_expires:
-            return True
-
-        return False
+        return time.time() > token_expires
 
     def get_access_token(self):
         """Возвращает токен."""
