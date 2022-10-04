@@ -1,4 +1,5 @@
 import logging
+from functools import partial
 from textwrap import dedent
 
 import redis
@@ -14,19 +15,16 @@ _database = None
 logger = logging.getLogger('fish-shop')
 
 
-def start(bot, update):
+def start(bot, update, moltin_api):
     """
     Хэндлер для состояния START.
 
     Бот отвечает пользователю фразой "Привет!" и переводит его в состояние ECHO.
     Теперь в ответ на его команды будет запускаеться хэндлер echo.
     """
+    moltin_api.get_or_create_cart(update.effective_user.id)
 
-    moltin = Moltin()
-
-    moltin.get_or_create_cart(update.effective_user.id)
-
-    products = moltin.get_products()
+    products = moltin_api.get_products()
 
     keyboard = [
         [InlineKeyboardButton(
@@ -58,16 +56,14 @@ def start(bot, update):
     return 'HANDLE_MENU'
 
 
-def get_image_url(product):
+def get_image_url(product, moltin_api):
     """Получает ссылку на URL изображения."""
-    moltin = Moltin()
-
     if file_id := (product.get('relationships')
                    .get('main_image')
                    .get('data')
                    .get('id')):
 
-        if file_url := (moltin.get_file_url(file_id)
+        if file_url := (moltin_api.get_file_url(file_id)
                         .get('data')
                         .get('link')
                         .get('href')):
@@ -75,7 +71,7 @@ def get_image_url(product):
             return file_url
 
 
-def handle_menu(bot, update):
+def handle_menu(bot, update, moltin_api):
     """Обработка кнопок меню."""
     chat_id = update.effective_chat.id
     message_id = update.effective_message.message_id
@@ -84,12 +80,10 @@ def handle_menu(bot, update):
 
     item_id = query.data
 
-    moltin = Moltin()
-
-    product = moltin.get_product(item_id)
+    product = moltin_api.get_product(item_id)
 
     try:
-        image_url = get_image_url(product)
+        image_url = get_image_url(product, moltin_api)
     except AttributeError:
         image_url = open('no_image.jpg', 'rb')
 
@@ -140,28 +134,26 @@ def handle_menu(bot, update):
     return 'HANDLE_DESCRIPTION'
 
 
-def handle_description(bot, update):
+def handle_description(bot, update, moltin_api):
     """Обработка вывода описания."""
     user_id = update.effective_user.id
     query = update.callback_query
 
     item_id, quantity = query.data.split('#')
 
-    moltin = Moltin()
-    moltin.add_cart_item(user_id, item_id=item_id, quantity=quantity)
+    moltin_api.add_cart_item(user_id, item_id=item_id, quantity=quantity)
 
     return 'HANDLE_DESCRIPTION'
 
 
-def show_cart(bot, update):
+def show_cart(bot, update, moltin_api):
     """Отображение корзины."""
     chat_id = update.effective_chat.id
     message_id = update.effective_message.message_id
     user_id = update.effective_user.id
 
-    moltin = Moltin()
-    cart = moltin.get_cart(user_id)
-    cart_items = moltin.get_cart_items(user_id).get('data', [])
+    cart = moltin_api.get_cart(user_id)
+    cart_items = moltin_api.get_cart_items(user_id).get('data', [])
 
     cost = (cart.get('data')
                 .get('meta')
@@ -234,20 +226,19 @@ def show_cart(bot, update):
     return 'HANDLE_CART'
 
 
-def handle_cart(bot, update):
+def handle_cart(bot, update, moltin_api):
     """Обработка кнопок корзины."""
     user_id = update.effective_user.id
 
     query = update.callback_query
     item_id = query.data
 
-    moltin = Moltin()
-    moltin.remove_cart_item(user_id, item_id)
+    moltin_api.remove_cart_item(user_id, item_id)
 
-    return show_cart(bot, update)
+    return show_cart(bot, update, moltin_api)
 
 
-def waiting_email(bot, update):
+def waiting_email(bot, update, moltin_api):
     """Получение email покупателя."""
     chat_id = update.effective_chat.id
     message_id = update.effective_message.message_id
@@ -261,7 +252,7 @@ def waiting_email(bot, update):
         moltin = Moltin()
         moltin.create_customer(user_id, email)
 
-        return show_cart(bot, update)
+        return show_cart(bot, update, moltin_api)
     else:
         bot.send_message(chat_id=chat_id,
                          text='Пожалуйста, введите свой e-mail:')
@@ -272,7 +263,7 @@ def waiting_email(bot, update):
         return 'WAITING_EMAIL'
 
 
-def handle_users_reply(bot, update):
+def handle_users_reply(bot, update, moltin_api):
     """
     Функция, которая запускается при любом сообщении от пользователя и решает как его обработать.
 
@@ -298,9 +289,9 @@ def handle_users_reply(bot, update):
     if user_reply == '/start' or user_reply == 'BACK':
         user_state = 'START'
     elif user_reply == 'SHOW_CART':
-        return show_cart(bot, update)
+        return show_cart(bot, update, moltin_api)
     elif user_reply == 'WAITING_EMAIL':
-        return waiting_email(bot, update)
+        return waiting_email(bot, update, moltin_api)
     else:
         user_state = db.get(chat_id).decode('utf-8')
 
@@ -317,7 +308,7 @@ def handle_users_reply(bot, update):
     # Оставляю этот try...except, чтобы код не падал молча.
     # Этот фрагмент можно переписать.
     try:
-        next_state = state_handler(bot, update)
+        next_state = state_handler(bot, update, moltin_api)
         db.set(chat_id, next_state)
     except Exception as err:
         logger.error(err)
@@ -359,13 +350,19 @@ def main():
     token = env.str('TELEGRAM_TOKEN')
     moltin_client_id = env.str('MOLTIN_CLIENT_ID')
 
-    Moltin(moltin_client_id)
+    moltin_api = Moltin(moltin_client_id)
+
+    handle_users_reply_partial = partial(
+        handle_users_reply,
+        moltin_api=moltin_api
+    )
 
     updater = Updater(token)
     dispatcher = updater.dispatcher
-    dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))
-    dispatcher.add_handler(MessageHandler(Filters.text, handle_users_reply))
-    dispatcher.add_handler(CommandHandler('start', handle_users_reply))
+    dispatcher.add_handler(CallbackQueryHandler(handle_users_reply_partial))
+    dispatcher.add_handler(MessageHandler(
+        Filters.text, handle_users_reply_partial))
+    dispatcher.add_handler(CommandHandler('start', handle_users_reply_partial))
     updater.start_polling()
 
 

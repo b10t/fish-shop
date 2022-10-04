@@ -8,15 +8,9 @@ class Moltin():
     __moltin_token = {}
     __moltin_client_id = ''
 
-    def __new__(cls, moltin_client_id=''):
-        try:
-            if not cls.__moltin_client_id:
-                cls.__moltin_client_id = moltin_client_id
-
-            it = cls.__it__
-        except AttributeError:
-            it = cls.__it__ = object.__new__(cls)
-        return it
+    def __init__(self, moltin_client_id=''):
+        if not self.__moltin_client_id:
+            self.__moltin_client_id = moltin_client_id
 
     def __repr__(self):
         return '<{}>'.format(self.__class__.__name__.upper())
