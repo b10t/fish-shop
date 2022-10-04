@@ -90,7 +90,7 @@ def handle_menu(bot, update):
 
     try:
         image_url = get_image_url(product)
-    except Exception:
+    except AttributeError:
         image_url = open('no_image.jpg', 'rb')
 
     price = product.get('price')[0]
