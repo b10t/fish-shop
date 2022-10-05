@@ -75,11 +75,12 @@ def handle_menu(bot, update, moltin_api):
     """Обработка кнопок меню."""
     chat_id = update.effective_chat.id
     message_id = update.effective_message.message_id
-
     query = update.callback_query
 
-    item_id = query.data
+    if query.data == 'SHOW_CART':
+        return show_cart(bot, update, moltin_api)
 
+    item_id = query.data
     product = moltin_api.get_product(item_id)
 
     try:
@@ -138,6 +139,11 @@ def handle_description(bot, update, moltin_api):
     """Обработка вывода описания."""
     user_id = update.effective_user.id
     query = update.callback_query
+
+    if query.data == 'SHOW_CART':
+        return show_cart(bot, update, moltin_api)
+    elif query.data == 'BACK':
+        return start(bot, update, moltin_api)
 
     item_id, quantity = query.data.split('#')
 
@@ -229,8 +235,13 @@ def show_cart(bot, update, moltin_api):
 def handle_cart(bot, update, moltin_api):
     """Обработка кнопок корзины."""
     user_id = update.effective_user.id
-
     query = update.callback_query
+
+    if query.data == 'WAITING_EMAIL':
+        return waiting_email(bot, update, moltin_api)
+    elif query.data == 'BACK':
+        return start(bot, update, moltin_api)
+
     item_id = query.data
 
     moltin_api.remove_cart_item(user_id, item_id)
@@ -249,8 +260,7 @@ def waiting_email(bot, update, moltin_api):
 
         update.message.reply_text(f'Ваш e-mail: {email}')
 
-        moltin = Moltin()
-        moltin.create_customer(user_id, email)
+        moltin_api.create_customer(user_id, email)
 
         return show_cart(bot, update, moltin_api)
     else:
@@ -286,12 +296,8 @@ def handle_users_reply(bot, update, moltin_api):
         chat_id = update.callback_query.message.chat_id
     else:
         return
-    if user_reply == '/start' or user_reply == 'BACK':
+    if user_reply == '/start':
         user_state = 'START'
-    elif user_reply == 'SHOW_CART':
-        return show_cart(bot, update, moltin_api)
-    elif user_reply == 'WAITING_EMAIL':
-        return waiting_email(bot, update, moltin_api)
     else:
         user_state = db.get(chat_id).decode('utf-8')
 
@@ -299,7 +305,6 @@ def handle_users_reply(bot, update, moltin_api):
         'START': start,
         'HANDLE_MENU': handle_menu,
         'HANDLE_DESCRIPTION': handle_description,
-        'SHOW_CART': show_cart,
         'HANDLE_CART': handle_cart,
         'WAITING_EMAIL': waiting_email
     }
